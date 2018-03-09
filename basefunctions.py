@@ -1,5 +1,6 @@
 import pymysql as p
 import numpy as np
+from py2neo import Graph as g,Path
 import pandas as pd
 from shutil import copyfile
 import os
@@ -14,6 +15,73 @@ PROJECTS_OWNER_COL_LIST=['project_id','project_name','owner_id','project_languag
 DESTINATION_DIRECTORY='C:/Users/User/AppData/Roaming/Neo4j Desktop/Application/neo4jDatabases/database-81e0ffd7-3dc8-426d-a54a-dbb7d75778a3/installation-3.3.2/import/'
 # BASE_PATH='/'
 # id,owner_id,name,description,language,created_at
+
+graph=g()
+
+def create_nodes():
+    print('Initializing Graph.....')
+    query = """
+    LOAD CSV WITH HEADERS
+    FROM "file:///GitHubProjectsGraph.csv"
+    AS row
+    CREATE (:Project {project_description:row.project_description, project_id:row.project_id,
+    URL:row.URL,project_language:row.project_language,owner_id:row.owner_id,
+    project_created_at: toInteger(row.project_created_at),project_name: row.project_name})
+    """
+    result = graph.run(query)
+
+    # query="CREATE INDEX ON :Project(project_name)"
+    # result =graph.run(query)
+
+    query = """
+    CREATE CONSTRAINT ON (p:Project)
+    ASSERT p.project_name IS UNIQUE
+    """
+    result = graph.run(query)
+
+    query = """
+    USING PERIODIC COMMIT
+    LOAD CSV WITH HEADERS
+    FROM "file:///GitHubUsersGraph.csv"
+    AS row
+    CREATE (:User {user_name:row.user_name, user_id:row.user_id,
+    user_email:row.user_email,user_login:row.login,user_created_on: toInteger(row.user_created_on),user_company: row.user_company,
+    user_type:row.user_type,user_location:row.user_location})
+    """
+    result = graph.run(query)
+
+    # query="CREATE INDEX ON :User(user_id)"
+    # result =graph.run(query)
+
+    query = """
+    CREATE CONSTRAINT ON (p:User)
+    ASSERT p.user_id IS UNIQUE
+    """
+    result = graph.run(query)
+
+def create_rels():
+    read_df_rels = pd.read_csv(PROJECT_OWNER_CSV_NAME + '.csv')
+    a = 0
+
+    print('Forming Links.....', end='\n')
+
+    for pname, uid, lang in zip(read_df_rels['project_name'], read_df_rels['owner_id'],
+                                read_df_rels['project_language']):
+        # print(type(pname),type(uid),type(lang))
+        a += 1
+        dict = {}
+        dict['pname'] = str(pname)
+        dict['uid'] = str(uid)
+        dict['lang'] = str(lang)
+        query = """
+        MATCH (a:Project),(b:User)
+        WHERE a.project_name = {pname} AND b.user_id = {uid}
+        CREATE (b)-[r:WORKS_ON]->(a)
+        SET r.language={lang}"""
+        result = graph.run(query, dict)
+
+    print('Created {} Links !'.format(a), end='\n')
+    print('Graph Ready !')
 
 def read_csv_and_clean():
     users = pd.read_csv(USERS_CSV_NAME + '.csv')
