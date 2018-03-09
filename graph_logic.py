@@ -12,7 +12,7 @@ import pandas as pd
 from basefunctions import DATABASE_NAME
 from basefunctions import openMySQlConnection, getResultsFromQueryAll,getResultsFromQueryFew,closeMySQLConnection
 from basefunctions import createCSVFromResults,PROJECTS_COL_LIST,PROJECT_CSV_NAME,USERS_COL_LIST,USERS_CSV_NAME
-from basefunctions import form_queries,read_csv_and_clean,PROJECT_OWNER_CSV_NAME
+from basefunctions import form_queries,read_csv_and_clean
 
 conn=openMySQlConnection(DATABASE_NAME)
 # form_queries()
