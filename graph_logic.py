@@ -26,6 +26,7 @@ conn=openMySQlConnection(DATABASE_NAME)
 # projects = pd.read_csv(PROJECT_CSV_NAME + '.csv')
 # print(projects.shape)
 
+# okay
 graph = g()
 # query = """
 # MATCH (group:Group)-[:HAS_TOPIC]->(topic)
