@@ -15,7 +15,7 @@ PROJECTS_OWNER_COL_LIST=['project_id','project_name','owner_id','project_languag
 FOLLOWERS_CSV_NAME='Followers'
 FOLLOWERS_COL_LIST=['user_id','follower_id','created_at']
 
-DESTINATION_DIRECTORY='C:/Users/User/AppData/Roaming/Neo4j Desktop/Application/neo4jDatabases/database-81e0ffd7-3dc8-426d-a54a-dbb7d75778a3/installation-3.3.2/import/'
+DESTINATION_DIRECTORY='C:/Users/visha/AppData/Roaming/Neo4j Desktop/Application/neo4jDatabases/database-63968ab1-e409-4ae4-9eaf-ac1388de3cfb/installation-3.3.4/import/'
 # BASE_PATH='/'
 # id,owner_id,name,description,language,created_at
 

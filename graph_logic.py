@@ -35,7 +35,7 @@ graph = g()
 # RETURN group.name, COLLECT(topic.name) AS topics
 # """
 
-# create_nodes()
+create_nodes()
 create_rels()
 
 query = """ MATCH (p:Project) RETURN p """
