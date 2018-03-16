@@ -15,12 +15,13 @@ from collections import OrderedDict
 from basefunctions import DATABASE_NAME
 from basefunctions import openMySQlConnection, getResultsFromQueryAll,getResultsFromQueryFew,closeMySQLConnection
 from basefunctions import createCSVFromResults,PROJECTS_COL_LIST,PROJECT_CSV_NAME,USERS_COL_LIST,USERS_CSV_NAME
-from basefunctions import form_queries,read_csv_and_clean
+from basefunctions import form_queries,read_csv_and_clean,create_nodes,create_rels
+import pandas as pd
 
 conn=openMySQlConnection(DATABASE_NAME)
-# form_queries()
-# read_csv_and_clean()
-
+form_queries()
+read_csv_and_clean()
+#
 # users = pd.read_csv(USERS_CSV_NAME + '.csv')
 # print(users.shape)
 # projects = pd.read_csv(PROJECT_CSV_NAME + '.csv')
@@ -35,7 +36,7 @@ graph = g()
 # """
 
 # create_nodes()
-# create_rels()
+create_rels()
 
 query = """ MATCH (p:Project) RETURN p """
 result = list(graph.run(query))

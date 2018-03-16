@@ -12,6 +12,9 @@ USERS_COL_LIST=['user_id','login','user_name','user_company','user_location','us
 USERS_CSV_NAME='GitHubUsers'
 PROJECT_OWNER_CSV_NAME='ProjectOwnerRel'
 PROJECTS_OWNER_COL_LIST=['project_id','project_name','owner_id','project_language']
+FOLLOWERS_CSV_NAME='Followers'
+FOLLOWERS_COL_LIST=['user_id','follower_id','created_at']
+
 DESTINATION_DIRECTORY='C:/Users/User/AppData/Roaming/Neo4j Desktop/Application/neo4jDatabases/database-81e0ffd7-3dc8-426d-a54a-dbb7d75778a3/installation-3.3.2/import/'
 # BASE_PATH='/'
 # id,owner_id,name,description,language,created_at
@@ -62,9 +65,7 @@ def create_nodes():
 def create_rels():
     read_df_rels = pd.read_csv(PROJECT_OWNER_CSV_NAME + '.csv')
     a = 0
-
     print('Forming Links.....', end='\n')
-
     for pname, uid, lang in zip(read_df_rels['project_name'], read_df_rels['owner_id'],
                                 read_df_rels['project_language']):
         # print(type(pname),type(uid),type(lang))
@@ -78,6 +79,23 @@ def create_rels():
         WHERE a.project_name = {pname} AND b.user_id = {uid}
         CREATE (b)-[r:WORKS_ON]->(a)
         SET r.language={lang}"""
+        result = graph.run(query, dict)
+
+    read_df_rels = pd.read_csv(FOLLOWERS_CSV_NAME + '.csv')
+    a = 0
+    print('Forming Links.....', end='\n')
+    for uid, follower,cr in zip(read_df_rels['user_id'], read_df_rels['follower_id'],read_df_rels['created_at']):
+        # print(type(pname),type(uid),type(lang))
+        a += 1
+        dict = {}
+        dict['date'] = str(cr)
+        dict['uid'] = str(uid)
+        dict['fol'] = str(follower)
+        query = """
+            MATCH (a:User),(b:User)
+            WHERE a.user_id = {uid} AND b.user_id = {fol}
+            CREATE (b)-[r:FOLLOWS]->(a)
+            SET r.date={date}"""
         result = graph.run(query, dict)
 
     print('Created {} Links !'.format(a), end='\n')
@@ -146,6 +164,10 @@ def form_queries():
             "where login is not NULL and email IS NOT NULL and name is not null"
     results = getResultsFromQueryAll(query)
     createCSVFromResults(results, USERS_CSV_NAME, USERS_COL_LIST)
+
+    query = "select user_id,follower_id,created_at from followers"
+    results = getResultsFromQueryAll(query)
+    createCSVFromResults(results, FOLLOWERS_CSV_NAME, FOLLOWERS_COL_LIST)
 
 def createCSVFromResults(results,name_,col_list):
     # abc=pd.DataFrame(col_list,columns=)
