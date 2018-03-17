@@ -1,9 +1,10 @@
-import pymysql as p
-import numpy as np
-from py2neo import Graph as g,Path
-import pandas as pd
-from shutil import copyfile
 import os
+from shutil import copyfile
+import pandas as pd
+import pymysql as p
+from py2neo import Graph as g
+from collections import OrderedDict
+
 DATABASE_NAME="githubSQL"
 cursor=p.cursors
 PROJECTS_COL_LIST=['project_id','project_name','owner_id','project_description','project_language','URL','project_created_at']
@@ -61,8 +62,44 @@ def create_nodes():
     ASSERT p.user_id IS UNIQUE
     """
     result = graph.run(query)
+    print('Nodes Formed !')
 
-def create_rels():
+def create_dict_summary():
+    query = """ MATCH (p:Project) RETURN p """
+    result = list(graph.run(query))
+    project_developers = OrderedDict()
+    for i in result:
+        query = """ MATCH (p:Project)<-[:WORKS_ON]-() WHERE p.project_name={pr_name} RETURN COUNT(p) """
+        result_ = list(graph.run(query, {'pr_name': i['p']['project_name']}))
+        project_developers[i['p']['project_name']] = result_[0]['COUNT(p)']
+    # a=sorted(a)
+    project_developers = OrderedDict(sorted(project_developers.items(), key=lambda item: item[1], reverse=True))
+    # for i in project_developers.items():
+    #     print('project:{}  developers:{}'.format(i[0],i[1]),end='\n')
+
+    query = """ MATCH (p:User) RETURN p LIMIT 100"""
+    result = list(graph.run(query))
+    #
+    developer_projects = OrderedDict()
+    for i in result[0:100]:
+        query = """ MATCH (p:User)-[:WORKS_ON]->() WHERE p.user_name={u_name} RETURN COUNT(p) """
+        result_ = list(graph.run(query, {'u_name': i['p']['user_name']}))
+        developer_projects[i['p']['user_name']] = result_[0]['COUNT(p)']
+
+    # a=sorted(a)
+    developer_projects = OrderedDict(sorted(developer_projects.items(), key=lambda item: item[1], reverse=True))
+    # for i in developer_projects.items():
+    #     print('developer:{}  projects:{}'.format(i[0],i[1]),end='\n')
+
+    with open('abc.txt', 'w') as r:
+        r.write('Saved Developers and their number of projects:')
+        for i in developer_projects.items():
+            r.write(str(i))
+        r.write('Saved Projects and their number of developers:')
+        for i in project_developers.items():
+            r.write(str(i))
+
+def works_on_rels():
     read_df_rels = pd.read_csv(PROJECT_OWNER_CSV_NAME + '.csv')
     a = 0
     print('Forming Links.....', end='\n')
@@ -75,16 +112,17 @@ def create_rels():
         dict['uid'] = str(uid)
         dict['lang'] = str(lang)
         query = """
-        MATCH (a:Project),(b:User)
-        WHERE a.project_name = {pname} AND b.user_id = {uid}
-        CREATE (b)-[r:WORKS_ON]->(a)
-        SET r.language={lang}"""
+            MATCH (a:Project),(b:User)
+            WHERE a.project_name = {pname} AND b.user_id = {uid}
+            CREATE (b)-[r:WORKS_ON]->(a)
+            SET r.language={lang}"""
         result = graph.run(query, dict)
-
+    return a
+def follows_rels():
     read_df_rels = pd.read_csv(FOLLOWERS_CSV_NAME + '.csv')
     a = 0
     print('Forming Links.....', end='\n')
-    for uid, follower,cr in zip(read_df_rels['user_id'], read_df_rels['follower_id'],read_df_rels['created_at']):
+    for uid, follower, cr in zip(read_df_rels['user_id'], read_df_rels['follower_id'], read_df_rels['created_at']):
         # print(type(pname),type(uid),type(lang))
         a += 1
         dict = {}
@@ -92,13 +130,21 @@ def create_rels():
         dict['uid'] = str(uid)
         dict['fol'] = str(follower)
         query = """
-            MATCH (a:User),(b:User)
-            WHERE a.user_id = {uid} AND b.user_id = {fol}
-            CREATE (b)-[r:FOLLOWS]->(a)
-            SET r.date={date}"""
+                MATCH (a:User),(b:User)
+                WHERE a.user_id = {uid} AND b.user_id = {fol}
+                CREATE (b)-[r:FOLLOWS]->(a)
+                SET r.date={date}"""
         result = graph.run(query, dict)
+    return a
+def proj_proj_rels():
+    print('a')
 
+def create_rels():
+    a=works_on_rels()
     print('Created {} Links !'.format(a), end='\n')
+    a=follows_rels()
+    print('Created {} Links !'.format(a), end='\n')
+    proj_proj_rels()
     print('Graph Ready !')
 
 def read_csv_and_clean():
@@ -151,7 +197,7 @@ def form_queries():
     results = getResultsFromQueryAll(query)
 
     query = "select id ,name,owner_id,description,language,url,created_at as p1 " \
-            "from projects where name is not NULL and description is NOT NULL and language IS NOT NULL and url is not null group by name"
+            "from projects where name is not NULL and language IS NOT NULL and url is not null group by name"
     results = getResultsFromQueryAll(query)
     createCSVFromResults(results, PROJECT_CSV_NAME, PROJECTS_COL_LIST)
 
