@@ -1,9 +1,10 @@
 import os
+from collections import OrderedDict
 from shutil import copyfile
+
 import pandas as pd
 import pymysql as p
 from py2neo import Graph as g
-from collections import OrderedDict
 
 DATABASE_NAME="githubSQL"
 cursor=p.cursors
@@ -32,16 +33,15 @@ def create_nodes():
     URL:row.URL,project_language:row.project_language,owner_id:row.owner_id,
     project_created_at: toInteger(row.project_created_at),project_name: row.project_name})
     """
-    result = graph.run(query)
 
-    # query="CREATE INDEX ON :Project(project_name)"
-    # result =graph.run(query)
+    graph.run(query)
 
     query = """
     CREATE CONSTRAINT ON (p:Project)
     ASSERT p.project_name IS UNIQUE
     """
-    result = graph.run(query)
+
+    graph.run(query)
 
     query = """
     USING PERIODIC COMMIT
@@ -52,20 +52,178 @@ def create_nodes():
     user_email:row.user_email,user_login:row.login,user_created_on: toInteger(row.user_created_on),user_company: row.user_company,
     user_type:row.user_type,user_location:row.user_location})
     """
-    result = graph.run(query)
-
-    # query="CREATE INDEX ON :User(user_id)"
-    # result =graph.run(query)
+    graph.run(query)
 
     query = """
     CREATE CONSTRAINT ON (p:User)
     ASSERT p.user_id IS UNIQUE
     """
-    result = graph.run(query)
+    graph.run(query)
     print('Nodes Formed !')
 
-def create_dict_summary():
+def proj_proj_dev_dev_rels():
+    query = """ MATCH (p:Project)-[r:PROJECT_PROJECT]->() DELETE r """
+    graph.run(query)
+    query = """ MATCH (p:User)-[r:DEVELOPER_DEVELOPER]->() DELETE r """
+    graph.run(query)
+
+    '''
+    Creating Project Project Relationships.
+    Relationship is estabished if 2 projects have atleast one common developer.
+    Weights on relationship is the number of common developers between them.
+    '''
     query = """ MATCH (p:Project) RETURN p """
+    result = list(graph.run(query))
+    # project_developers = OrderedDict()
+    visited_nodes = list()
+    proj = {}
+    for i in result:
+        query = """ MATCH (p1:Project)<-[:WORKS_ON]-(d:User)-[:WORKS_ON]->(p2:Project) WHERE p1.project_name={pr_name} RETURN p1.project_name,d.user_login,p2.project_name"""
+        # result_ = list(graph.run(query))
+        cur_proj_name = i['p']['project_name']
+        list_ = [cur_proj_name]
+        result_ = list(graph.run(query, {'pr_name': cur_proj_name}))
+        # print(i,end='\n')
+        # print(result_,end='\n')
+        list_ = list_ + list(map(lambda x: x['p2.project_name'], result_))
+        # print(list_, end='\n')
+
+        while len(list_) > 0 and cur_proj_name not in visited_nodes:
+            cur_proj_name = list_[0]
+            visited_nodes.append(str(cur_proj_name))
+            print(len(list(visited_nodes)), end='\n')
+            list_.pop(list_.index(cur_proj_name))
+            for j in list_:
+                dict = {}
+                dict['pr_name1'] = cur_proj_name
+                dict['pr_name2'] = j
+                # print('{} {}'.format(dict['pr_name1'],dict['pr_name2']),end='\n')
+                # dict['lang'] = str(lang)
+                query = """
+                        MATCH (a:Project),(b:Project)
+                        WHERE a.project_name = {pr_name1} AND b.project_name = {pr_name2}
+                        MERGE (a)-[:PROJECT_PROJECT]->(b)
+                        MERGE (b)-[:PROJECT_PROJECT]->(a)
+                        """
+                graph.run(query, dict)
+                # print()
+                query = """
+                        MATCH (a:Project) <-[r1:WORKS_ON]-(u1:User)
+                        WHERE a.project_name = {pr_name1}
+                        RETURN u1.user_login
+                        """
+                if dict['pr_name1'] not in list(proj.keys()):
+                    a = list(graph.run(query, dict))
+                    a = list(map(lambda x: x['u1.user_login'], list(a)))
+                    proj[dict['pr_name1']] = a
+                # print(a)
+                query = """
+                        MATCH (a:Project) <-[r1:WORKS_ON]-(u1:User)
+                        WHERE a.project_name = {pr_name2}
+                        RETURN u1.user_login
+                        """
+                if dict['pr_name2'] not in list(proj.keys()):
+                    b = list(graph.run(query, dict))
+                    b = list(map(lambda x: x['u1.user_login'], list(b)))
+                    proj[dict['pr_name2']] = b
+
+                # b = list(graph.run(query, dict)) if
+                # b = list(map(lambda x: x['u1.user_login'], list(b)))
+                # proj[dict['pr_name2']] = b
+
+                dict['weight'] = len(list(set(proj[dict['pr_name1']]) & set(proj[dict['pr_name2']])))
+
+                # print('{} {} {}'.format(dict['pr_name1'],dict['pr_name2'],weight),end='\n')
+                query = """
+                        MATCH (a:Project) <-[r1:PROJECT_PROJECT]-(b:Project)
+                        MATCH (b:Project) <-[r2:PROJECT_PROJECT]-(a:Project)
+                        WHERE a.project_name={pr_name1} AND b.project_name={pr_name2}
+                        SET r2.number_of_developers={weight}
+                        SET r1.number_of_developers={weight}
+                        """
+                graph.run(query, dict)
+
+    '''
+    Creating Developer Developer Relationships.
+    Relationship is estabished if 2 developer are working on atleast one common project.
+    Weights on relationship is the number of common projects between them.
+    '''
+    visited_nodes = list()
+    developers = {}
+    query = """ MATCH (p:User) RETURN p """
+    result = list(graph.run(query))
+    # project_developers = OrderedDict()
+
+    ################
+
+    for i in result:
+        query = """ MATCH (u1:User)-[:WORKS_ON]->(p:Project)<-[:WORKS_ON]-(u2:User) WHERE u1.user_id={u_id} RETURN u1.user_id,p.project_name,u2.user_id"""
+        # result_ = list(graph.run(query))
+        cur_proj_name = i['p']['user_id']
+        list_ = [cur_proj_name]
+        result_ = list(graph.run(query, {'u_id': i['p']['user_id']}))
+        # print(i,end='\n')
+        # print(result_,end='\n')
+        list_ = list_ + list(map(lambda x: x['u2.user_id'], result_))
+        # print(list_, end='\n')
+
+        while len(list_) > 0 and cur_proj_name not in visited_nodes:
+            cur_proj_name = list_[0]
+            visited_nodes.append(str(cur_proj_name))
+            print(len(list(visited_nodes)), end='\n')
+            list_.pop(list_.index(cur_proj_name))
+            for j in list_:
+                dict = {}
+                dict['u_id1'] = cur_proj_name
+                dict['u_id2'] = j
+                # print('{} {}'.format(dict['pr_name1'],dict['pr_name2']),end='\n')
+                # dict['lang'] = str(lang)
+                query = """
+                        MATCH (a:User),(b:User)
+                        WHERE a.user_id = {u_id1} AND b.user_id = {u_id2}
+                        MERGE (a)-[:DEVELOPER_DEVELOPER]->(b)
+                        MERGE (b)-[:DEVELOPER_DEVELOPER]->(a)
+                        """
+                graph.run(query, dict)
+                # print()
+                query = """
+                        MATCH (a:User) -[r1:WORKS_ON]->(p1:Project)
+                        WHERE a.user_id = {u_id1}
+                        RETURN p1.project_name
+                        """
+                if dict['u_id1'] not in list(developers.keys()):
+                    a = list(graph.run(query, dict))
+                    a = list(map(lambda x: x['p1.project_name'], list(a)))
+                    developers[dict['u_id1']] = a
+                # print(a)
+                query = """
+                        MATCH (a:User) -[r1:WORKS_ON]->(p1:Project)
+                        WHERE a.user_id = {u_id2}
+                        RETURN p1.project_name
+                        """
+                if dict['u_id2'] not in list(developers.keys()):
+                    b = list(graph.run(query, dict))
+                    b = list(map(lambda x: x['p1.project_name'], list(b)))
+                    developers[dict['u_id2']] = b
+
+                # b = list(graph.run(query, dict)) if
+                # b = list(map(lambda x: x['u1.user_login'], list(b)))
+                # proj[dict['pr_name2']] = b
+
+                dict['weight'] = len(list(set(developers[dict['u_id1']]) & set(developers[dict['u_id2']])))
+
+                # print('{} {} {}'.format(dict['pr_name1'],dict['pr_name2'],weight),end='\n')
+                query = """
+                        MATCH (a:User) <-[r1:DEVELOPER_DEVELOPER]-(b:User)
+                        MATCH (b:User) <-[r2:DEVELOPER_DEVELOPER]-(a:User)
+                        WHERE a.user_id={u_id1} AND b.user_id={u_id2}
+                        SET r2.number_of_projects={weight}
+                        SET r1.number_of_projects={weight}
+                        """
+                graph.run(query, dict)
+
+def create_dict_summary():
+    query = """ MATCH (p:Project) RETURN p LIMIT 1000"""
     result = list(graph.run(query))
     project_developers = OrderedDict()
     for i in result:
@@ -77,7 +235,7 @@ def create_dict_summary():
     # for i in project_developers.items():
     #     print('project:{}  developers:{}'.format(i[0],i[1]),end='\n')
 
-    query = """ MATCH (p:User) RETURN p LIMIT 100"""
+    query = """ MATCH (p:User) RETURN p LIMIT 1000"""
     result = list(graph.run(query))
     #
     developer_projects = OrderedDict()
@@ -118,6 +276,7 @@ def works_on_rels():
             SET r.language={lang}"""
         result = graph.run(query, dict)
     return a
+
 def follows_rels():
     read_df_rels = pd.read_csv(FOLLOWERS_CSV_NAME + '.csv')
     a = 0
@@ -136,15 +295,19 @@ def follows_rels():
                 SET r.date={date}"""
         result = graph.run(query, dict)
     return a
-def proj_proj_rels():
-    print('a')
 
 def create_rels():
+    print('Creating Project-Worker Links...')
     a=works_on_rels()
     print('Created {} Links !'.format(a), end='\n')
+
+    print('Creating User-Follower Links...')
     a=follows_rels()
     print('Created {} Links !'.format(a), end='\n')
-    proj_proj_rels()
+
+    print('Creating Project-Project and Developer-Developer Collboration Links...')
+    proj_proj_dev_dev_rels()
+
     print('Graph Ready !')
 
 def read_csv_and_clean():
