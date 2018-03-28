@@ -16,6 +16,10 @@ PROJECT_OWNER_CSV_NAME='ProjectOwnerRel'
 PROJECTS_OWNER_COL_LIST=['project_id','project_name','owner_id','project_language']
 FOLLOWERS_CSV_NAME='Followers'
 FOLLOWERS_COL_LIST=['user_id','follower_id','created_at']
+PULL_REQUEST_CSV_NAME="ProjectOwnerActorRel"
+PULL_REQUEST_COL_LIST=['owner_id','actor_id','pull_request_created_on']
+COMMIT_CSV_NAME="CommitPullRequestRelation"
+COMMIT_COLUMN_LIST=['commit_id','pull_request_id','owner_id','author_id','created_on']
 
 DESTINATION_DIRECTORY='C:/Users/visha/AppData/Roaming/Neo4j Desktop/Application/neo4jDatabases/database-63968ab1-e409-4ae4-9eaf-ac1388de3cfb/installation-3.3.4/import/'
 # BASE_PATH='/'
@@ -60,6 +64,22 @@ def create_nodes():
     """
     graph.run(query)
     print('Nodes Formed !')
+
+def read_dictionary_from_graph_results(result):
+    # import pandas as pd
+    list_=list(result[0].keys())
+    print(list_)
+    add=list()
+    for i in range(len(result)):
+        temp=list()
+        for j in list_:
+            temp.extend([result[i][j]])
+                # temp.extend([result[i][j]])
+        add.extend([temp])
+        # print(add)
+
+    store = pd.DataFrame(add,columns=list_)
+    print(store.head())
 
 def proj_proj_dev_dev_rels():
     query = """ MATCH (p:Project)-[r:PROJECT_PROJECT]->() DELETE r """
@@ -288,6 +308,7 @@ def follows_rels():
         dict['date'] = str(cr)
         dict['uid'] = str(uid)
         dict['fol'] = str(follower)
+        print(dict)
         query = """
                 MATCH (a:User),(b:User)
                 WHERE a.user_id = {uid} AND b.user_id = {fol}
@@ -296,19 +317,51 @@ def follows_rels():
         result = graph.run(query, dict)
     return a
 
+
+def create_owner_actor_rels():
+    read_df_rels = pd.read_csv(PULL_REQUEST_CSV_NAME + '.csv')
+    a = 0
+    print('Forming Links.....', end='\n')
+    for owner_id, actor_id, pull_request_created_on in zip(read_df_rels['owner_id'], read_df_rels['actor_id'],
+                                                           read_df_rels['pull_request_created_on']):
+        # print(type(owner_id),type(actor_id),type(pull_request_created_on))
+        a += 1
+        dict = {}
+        dict['owner_id'] = str(owner_id)
+        dict['actor_id'] = str(actor_id)
+        dict['date'] = str(pull_request_created_on)
+        print(dict)
+        query = """
+                    MATCH (a:User),(b:User)
+                    WHERE a.user_id = {owner_id} AND b.user_id = {actor_id}
+                    CREATE (b)-[r:PULLREQUEST]->(a)
+                    """
+        result = graph.run(query, dict)
+    return a
+
+
 def create_rels():
-    print('Creating Project-Worker Links...')
-    a=works_on_rels()
-    print('Created {} Links !'.format(a), end='\n')
+    # print('Creating Project-Worker Links...')
+    # a=works_on_rels()
+    # print('Created {} Links !'.format(a), end='\n')
+    #
+    # print('Creating User-Follower Links...')
+    # a=follows_rels()
+    # print('Created {} Links !'.format(a), end='\n')
+    #
+    # print('Creating Project-Project and Developer-Developer Collboration Links...')
+    # proj_proj_dev_dev_rels()
 
-    print('Creating User-Follower Links...')
-    a=follows_rels()
-    print('Created {} Links !'.format(a), end='\n')
 
-    print('Creating Project-Project and Developer-Developer Collboration Links...')
-    proj_proj_dev_dev_rels()
+    print('Creating relation between Project owner and Pull Request Actor')
+    a = create_owner_actor_rels()
+    print('Created {} Links !'.format(a), end='\n')
 
     print('Graph Ready !')
+
+
+
+
 
 def read_csv_and_clean():
     users = pd.read_csv(USERS_CSV_NAME + '.csv')
@@ -353,30 +406,40 @@ def read_csv_and_clean():
     # copyfile(PROJECT_CSV_NAME+'.csv', DESTINATION_DIRECTORY+PROJECT_CSV_NAME+'.csv')
 
 def form_queries():
-    query = "show tables"
+    # query = "show tables"
+    # results = getResultsFromQueryAll(query)
+    #
+    # query = "show fields from users"
+    # results = getResultsFromQueryAll(query)
+    #
+    # query = "select id ,name,owner_id,description,language,url,created_at as p1 " \
+    #         "from projects where name is not NULL and language IS NOT NULL and url is not null group by name"
+    # results = getResultsFromQueryAll(query)
+    # createCSVFromResults(results, PROJECT_CSV_NAME, PROJECTS_COL_LIST)
+    #
+    # query = "select id ,name,owner_id,language from projects " \
+    #         "where name is not NULL and description is NOT NULL and language IS NOT NULL and url is not null"
+    # results = getResultsFromQueryAll(query)
+    # createCSVFromResults(results, PROJECT_OWNER_CSV_NAME, PROJECTS_OWNER_COL_LIST)
+    #
+    # query = "select id,login,name,company,location,email,type,created_at from users " \
+    #         "where login is not NULL and email IS NOT NULL and name is not null"
+    # results = getResultsFromQueryAll(query)
+    # createCSVFromResults(results, USERS_CSV_NAME, USERS_COL_LIST)
+    #
+    # query = "select user_id,follower_id,created_at from followers"
+    # results = getResultsFromQueryAll(query)
+    # createCSVFromResults(results, FOLLOWERS_CSV_NAME, FOLLOWERS_COL_LIST)
+    print("hello")
+    # query = "select p.owner_id as owner_id, prh.actor_id as actor_id, prh.created_at  from projects as p, " \
+    #         "pull_requests as pr, pull_request_history as prh where prh.pull_request_id = pr.id and pr.base_repo_id = p.id"
+    # results = getResultsFromQueryAll(query)
+    # createCSVFromResults(results, PULL_REQUEST_CSV_NAME, PULL_REQUEST_COL_LIST)
+    query = ""
     results = getResultsFromQueryAll(query)
+    createCSVFromResults(results, COMMIT_CSV_NAME, COMMIT_COLUMN_LIST)
+    print("hello")
 
-    query = "show fields from users"
-    results = getResultsFromQueryAll(query)
-
-    query = "select id ,name,owner_id,description,language,url,created_at as p1 " \
-            "from projects where name is not NULL and language IS NOT NULL and url is not null group by name"
-    results = getResultsFromQueryAll(query)
-    createCSVFromResults(results, PROJECT_CSV_NAME, PROJECTS_COL_LIST)
-
-    query = "select id ,name,owner_id,language from projects " \
-            "where name is not NULL and description is NOT NULL and language IS NOT NULL and url is not null"
-    results = getResultsFromQueryAll(query)
-    createCSVFromResults(results, PROJECT_OWNER_CSV_NAME, PROJECTS_OWNER_COL_LIST)
-
-    query = "select id,login,name,company,location,email,type,created_at from users " \
-            "where login is not NULL and email IS NOT NULL and name is not null"
-    results = getResultsFromQueryAll(query)
-    createCSVFromResults(results, USERS_CSV_NAME, USERS_COL_LIST)
-
-    query = "select user_id,follower_id,created_at from followers"
-    results = getResultsFromQueryAll(query)
-    createCSVFromResults(results, FOLLOWERS_CSV_NAME, FOLLOWERS_COL_LIST)
 
 def createCSVFromResults(results,name_,col_list):
     # abc=pd.DataFrame(col_list,columns=)

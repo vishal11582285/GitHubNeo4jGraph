@@ -14,7 +14,7 @@ from py2neo import Graph as g
 
 from basefunctions import DATABASE_NAME
 from basefunctions import form_queries, read_csv_and_clean
-from basefunctions import openMySQlConnection, closeMySQLConnection,create_nodes,create_rels,create_dict_summary
+from basefunctions import openMySQlConnection, closeMySQLConnection,create_nodes,create_rels,create_dict_summary,read_dictionary_from_graph_results
 
 #
 # users = pd.read_csv(USERS_CSV_NAME + '.csv')
@@ -28,29 +28,52 @@ from basefunctions import openMySQlConnection, closeMySQLConnection,create_nodes
 # """
 
 conn=openMySQlConnection(DATABASE_NAME)
+
 print('Begin....',end='\n')
 
 'Form SQL queries and Create CSV files for table data. (MySQL)'
 form_queries()
 
 'Prune Missing Data and blank values from CSV files.'
-read_csv_and_clean()
+# read_csv_and_clean()
 
 'Initialize Neo4j Graph driver.'
 graph = g()
 
 'Create Nodes In Graph. Projects and Users.'
-create_nodes()
+# create_nodes()
 
 'Create Relationships In Graph. User-Project "WORKS_ON" and User-User "FOLLOWS" ' \
-'Also From Collboration Graph. Cite Paper. Project-Project and User-User. (Imp)'
+'Also From Collboration Graph. Cite Paper. Project-Project and User-User. (Imp)' \
+'Also create relation ship between the Actor who reated the Pull request for a project and the owner of that Project'
 create_rels()
 
 'Create Project-User and User-Project summaries eg. How many developers on working on each project. '
-create_dict_summary()
+# create_dict_summary()
 
 print('All Queries pushed to Graph !',end='\n')
 print('Written File !')
 
-'CLose the open MySQL connection'
+
+# #Recommemdation logic
+# query = """
+#         MATCH (a:User),(b:User),(c:Project)
+#         MATCH (a)-[:FOLLOWS]->(b)
+#         MATCH (b)-[:WORKS_ON]->(c)
+#         WITH a.user_login AS UserLoginName,COLLECT(DISTINCT b.user_login) AS AllOtherUsers,COLLECT(DISTINCT c.project_name) AS ProjectNames
+#         RETURN UserLoginName,AllOtherUsers,ProjectNames
+#         """
+#
+# result = list(graph.run(query))
+#
+# read_dictionary_from_graph_results(result)
+#
+#
+#
+# # CALL algo.pageRank.stream('Project','PROJECT_PROJECT',
+# #   {iterations:20, dampingFactor:0.85, concurrency:4})
+# # YIELD node, score
+# # RETURN node.project_name,node.project_language,score order by score DESC
+#
+# 'CLose the open MySQL connection'
 closeMySQLConnection(conn)
