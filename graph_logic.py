@@ -45,7 +45,8 @@ graph = g()
 
 'Create Relationships In Graph. User-Project "WORKS_ON" and User-User "FOLLOWS" ' \
 'Also From Collboration Graph. Cite Paper. Project-Project and User-User. (Imp)' \
-'Also create relation ship between the Actor who reated the Pull request for a project and the owner of that Project'
+'Also create relationship between the Actor who reated the Pull request for a project and the owner of that Project'
+'create relationship between users Commiter vs Author'
 create_rels()
 
 'Create Project-User and User-Project summaries eg. How many developers on working on each project. '

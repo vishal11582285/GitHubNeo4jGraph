@@ -17,7 +17,7 @@ PROJECTS_OWNER_COL_LIST=['project_id','project_name','owner_id','project_languag
 FOLLOWERS_CSV_NAME='Followers'
 FOLLOWERS_COL_LIST=['user_id','follower_id','created_at']
 PULL_REQUEST_CSV_NAME="ProjectOwnerActorRel"
-PULL_REQUEST_COL_LIST=['owner_id','actor_id','pull_request_created_on']
+PULL_REQUEST_COL_LIST=['count','owner_id','actor_id','pull_request_created_on']
 COMMIT_CSV_NAME="CommitPullRequestRelation"
 COMMIT_COLUMN_LIST=['commit_id','pull_request_id','owner_id','author_id','created_on']
 
@@ -322,11 +322,14 @@ def create_owner_actor_rels():
     read_df_rels = pd.read_csv(PULL_REQUEST_CSV_NAME + '.csv')
     a = 0
     print('Forming Links.....', end='\n')
-    for owner_id, actor_id, pull_request_created_on in zip(read_df_rels['owner_id'], read_df_rels['actor_id'],
+    query = """ MATCH (p:User)-[r:PULLREQUEST]->() DELETE r """
+    graph.run(query)
+    for count, owner_id, actor_id, pull_request_created_on in zip(read_df_rels['count'], read_df_rels['owner_id'], read_df_rels['actor_id'],
                                                            read_df_rels['pull_request_created_on']):
         # print(type(owner_id),type(actor_id),type(pull_request_created_on))
         a += 1
         dict = {}
+        dict['count'] = str(count)
         dict['owner_id'] = str(owner_id)
         dict['actor_id'] = str(actor_id)
         dict['date'] = str(pull_request_created_on)
@@ -335,6 +338,30 @@ def create_owner_actor_rels():
                     MATCH (a:User),(b:User)
                     WHERE a.user_id = {owner_id} AND b.user_id = {actor_id}
                     CREATE (b)-[r:PULLREQUEST]->(a)
+                    SET r.number_of_pull_request={count}
+                    """
+        result = graph.run(query, dict)
+    return a
+
+def create_pullrequest_commit_rels():
+    read_df_rels = pd.read_csv(COMMIT_CSV_NAME + '.csv')
+    a = 0
+    print('Forming Links.....', end='\n')
+    for commit_id,pull_request_id,owner_id,author_id,created_on in zip(read_df_rels['commit_id'], read_df_rels['pull_request_id'],
+                                                           read_df_rels['owner_id'], read_df_rels['author_id'], read_df_rels['created_on']):
+        # print(type(owner_id),type(actor_id),type(pull_request_created_on))
+        a += 1
+        dict = {}
+        dict['commit_id'] = str(commit_id)
+        dict['pull_request_id'] = str(pull_request_id)
+        dict['owner_id'] = str(owner_id)
+        dict['author_id'] = str(author_id)
+        dict['date'] = str(created_on)
+        # print(dict)
+        query = """
+                    MATCH (a:User),(b:User)
+                    WHERE a.user_id = {author_id} AND b.user_id = {owner_id}
+                    CREATE (b)-[r:COMMITS]->(a)
                     """
         result = graph.run(query, dict)
     return a
@@ -356,6 +383,11 @@ def create_rels():
     print('Creating relation between Project owner and Pull Request Actor')
     a = create_owner_actor_rels()
     print('Created {} Links !'.format(a), end='\n')
+
+    # print('Creating relation between Pull Request and Commits along with Commitor_ID and Actor_ID')
+    # a = create_pullrequest_commit_rels()
+    # print('Created {} Links !'.format(a), end='\n')
+
 
     print('Graph Ready !')
 
@@ -431,13 +463,16 @@ def form_queries():
     # results = getResultsFromQueryAll(query)
     # createCSVFromResults(results, FOLLOWERS_CSV_NAME, FOLLOWERS_COL_LIST)
     print("hello")
-    # query = "select p.owner_id as owner_id, prh.actor_id as actor_id, prh.created_at  from projects as p, " \
-    #         "pull_requests as pr, pull_request_history as prh where prh.pull_request_id = pr.id and pr.base_repo_id = p.id"
-    # results = getResultsFromQueryAll(query)
-    # createCSVFromResults(results, PULL_REQUEST_CSV_NAME, PULL_REQUEST_COL_LIST)
-    query = ""
+    query = "select count(*), p.owner_id as owner_id, prh.actor_id as actor_id, prh.created_at  from projects as p, " \
+            "pull_requests as pr, pull_request_history as prh where prh.pull_request_id = pr.id and pr.base_repo_id = p.id " \
+            "group by owner_id, actor_id;"
     results = getResultsFromQueryAll(query)
-    createCSVFromResults(results, COMMIT_CSV_NAME, COMMIT_COLUMN_LIST)
+    createCSVFromResults(results, PULL_REQUEST_CSV_NAME, PULL_REQUEST_COL_LIST)
+    # query = "select c.id,prc.pull_request_id, c.committer_id, c.author_id,c.created_at from commits c JOIN pull_request_commits prc " \
+    #         "ON c.id=prc.commit_id where c.committer_id<>c.author_id ;"
+    # COMMIT_COLUMN_LIST = ['commit_id', 'pull_request_id', 'owner_id', 'author_id', 'created_on']
+    # results = getResultsFromQueryAll(query)
+    # createCSVFromResults(results, COMMIT_CSV_NAME, COMMIT_COLUMN_LIST)
     print("hello")
 
 
